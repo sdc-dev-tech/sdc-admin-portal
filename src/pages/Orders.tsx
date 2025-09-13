@@ -63,6 +63,8 @@ function Orders() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPageState, setCurrentPageState] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+
 
   // Determine if we're in search/filter mode
   const isSearchOrFilterActive =
@@ -78,9 +80,9 @@ function Orders() {
       dispatch(fetchOrders({})); // No page/limit params
     } else {
       // Fetch paginated orders when browsing normally
-      dispatch(fetchOrders({ page: currentPageState, limit: 10 }));
+      dispatch(fetchOrders({ page: currentPageState, limit: pageSize }));
     }
-  }, [dispatch, currentPageState, isSearchOrFilterActive]);
+  }, [dispatch, currentPageState, isSearchOrFilterActive, pageSize]);
 
   // Reset to first page when starting a search/filter
   useEffect(() => {
@@ -222,6 +224,22 @@ function Orders() {
           />
         </div>
         <div className="flex gap-2">
+          {  (statusFilter === "all" && searchTerm === "" ) && (
+  <Select
+    value={String(pageSize)}
+    onValueChange={(val) => setPageSize(Number(val))}
+  >
+    <SelectTrigger className="w-[120px]">
+      <SelectValue placeholder="Items per page" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="10">10 per page</SelectItem>
+      <SelectItem value="20">20 per page</SelectItem>
+      <SelectItem value="50">50 per page</SelectItem>
+      <SelectItem value="100">100 per page</SelectItem>
+    </SelectContent>
+  </Select>
+)}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Filter by status" />

@@ -68,6 +68,13 @@ function Products() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentPageState, setCurrentPageState] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+
+
+ 
+
+
 
   // Determine if we're in search/filter mode
   const isSearchOrFilterActive =
@@ -87,9 +94,9 @@ function Products() {
       dispatch(fetchProducts({})); // No page/limit params
     } else {
       // Fetch paginated products when browsing normally
-      dispatch(fetchProducts({ page: currentPageState, limit: 10 }));
+      dispatch(fetchProducts({ page: currentPageState, limit: pageSize}));
     }
-  }, [dispatch, currentPageState, isSearchOrFilterActive]);
+  }, [dispatch, currentPageState, isSearchOrFilterActive, pageSize]);
 
   // Reset to first page when starting a search/filter
   useEffect(() => {
@@ -221,9 +228,17 @@ function Products() {
         </Button>
       </div>
 
+   
+
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:w-auto sm:min-w-[300px]">
+
+
+          
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+
+          
           <Input
             placeholder="Search products..."
             className="pl-8"
@@ -232,6 +247,24 @@ function Products() {
           />
         </div>
         <div className="flex gap-2">
+
+             {/* Only show pageSize selector if not "All Categories" */}
+{  (categoryFilter === "" && searchTerm === "" ) && (
+  <Select
+    value={String(pageSize)}
+    onValueChange={(val) => setPageSize(Number(val))}
+  >
+    <SelectTrigger className="w-[120px]">
+      <SelectValue placeholder="Items per page" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="10">10 per page</SelectItem>
+      <SelectItem value="20">20 per page</SelectItem>
+      <SelectItem value="50">50 per page</SelectItem>
+      <SelectItem value="100">100 per page</SelectItem>
+    </SelectContent>
+  </Select>
+)}
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="All Categories" />
@@ -244,6 +277,10 @@ function Products() {
               ))}
             </SelectContent>
           </Select>
+
+
+
+
           {isSearchOrFilterActive && (
             <Button
               variant="outline"
@@ -360,9 +397,10 @@ function Products() {
       {!isSearchOrFilterActive && totalPages && totalPages > 1 && (
         <div className="flex items-center justify-between px-2 mt-4 flex-wrap gap-2">
           <div className="text-sm text-muted-foreground">
-            Showing {(currentPageState - 1) * 10 + 1} to{" "}
-            {Math.min(currentPageState * 10, totalProducts || 0)} of{" "}
-            {totalProducts} products
+          Showing {(currentPageState - 1) * pageSize + 1} to{" "}
+{Math.min(currentPageState * pageSize, totalProducts || 0)} of{" "}
+{totalProducts} products
+
           </div>
 
           <div className="flex items-center gap-1">
