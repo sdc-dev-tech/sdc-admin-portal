@@ -35,11 +35,12 @@ const EditItemDialog = ({
   disabled?: boolean;
 }) => {
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     name: item.productId.name,
     quantity: item.quantity,
     variants: item.variant,
-  });
+  }));
+
   const [isSubmitting] = useState(false);
   // const dispatch = useDispatch<AppDispatch>();
   // const { product } = useSelector((state: any) => state.orders);
@@ -54,6 +55,8 @@ const EditItemDialog = ({
       [field]: value,
     }));
   };
+
+
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -74,6 +77,8 @@ const EditItemDialog = ({
   };
 
   const handleSubmit = (newVariant: any, newQty: any) => {
+
+
     console.log("Submitting new variant:", newVariant, "and quantity:", newQty);
     setOpen(false);
     onReplace(newVariant, newQty);
@@ -164,7 +169,7 @@ const EditItemDialog = ({
           </Button>
           <Button
             type="button"
-            onClick={() => handleSubmit(item.variant, formData.quantity)}
+            onClick={() => handleSubmit(formData.variants, formData.quantity)}
             className="bg-[#3C5D87] hover:bg-[#2A4766]"
           >
             {isSubmitting ? (

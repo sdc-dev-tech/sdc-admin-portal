@@ -26,32 +26,28 @@ const SendToWarehouse = ({ selectedOrder, loading }: any) => {
   const [itemActions, setItemActions] = useState<any[]>([]);
   const [removedItems, setRemovedItems] = useState<Set<string>>(new Set());
   const [removedActions, setRemovedActions] = useState<Set<number>>(new Set());
-
-  const [updatedData, setUpdateData] = useState<any>(null);
+  const [updatedData, setUpdatedData] = useState<
+    Record<string, { newVariant: string; newQty: number }>
+  >({});
 
   const dispatch = useDispatch<AppDispatch>();
 
-  // Function to handle removing an original item
+  // Remove original item
   const handleRemoveItem = (
     itemId: string,
     productId: string,
     variant: string
   ) => {
-    setRemovedItems((prev) => new Set(prev.add(itemId)));
+   setRemovedItems((prev) => new Set([...prev, itemId]));
     setItemActions((prev) => [
       ...prev.filter(
-        (action) =>
-          !(action.productId === productId && action.variant === variant)
+        (a) => !(a.productId === productId && a.variant === variant)
       ),
-      {
-        action: "remove",
-        productId,
-        variant,
-      },
+      { action: "remove", productId, variant },
     ]);
   };
 
-  // Function to handle adding a new item
+  // Add new item
   const handleAddItem = (
     name: string,
     productId: string,
@@ -60,16 +56,11 @@ const SendToWarehouse = ({ selectedOrder, loading }: any) => {
   ) => {
     setItemActions((prev) => [
       ...prev,
-      {
-        action: "add",
-        name,
-        productId,
-        variant,
-        quantity,
-      },
+      { action: "add", name, productId, variant, quantity },
     ]);
   };
 
+  // Replace item variant/quantity
   const handleReplaceItem = (
     oldProductId: string,
     oldVariant: string,
@@ -77,88 +68,72 @@ const SendToWarehouse = ({ selectedOrder, loading }: any) => {
     newVariant: string,
     newQty: number
   ) => {
-    let action: any = null;
+    const key = `${oldProductId}-${oldVariant}`;
+    const hasChanges = newVariant !== oldVariant || oldQuantity !== newQty;
 
-    if (newVariant !== oldVariant) {
-      action = {
+    if (hasChanges) {
+      const action = {
         action: "replace",
         productId: oldProductId,
         variant: oldVariant,
-        newVariant,
+        ...(newVariant !== oldVariant && { newVariant }),
+        ...(oldQuantity !== newQty && { quantity: newQty }),
       };
-    } else if (oldQuantity !== newQty) {
-      action = {
-        action: "replace",
-        productId: oldProductId,
-        variant: oldVariant,
-        quantity: newQty,
-      };
-    }
 
-    if (action) {
       setItemActions((prev) => {
-        // Remove ANY previous action for the same product+variant combination
         const filtered = prev.filter(
           (a) => !(a.productId === oldProductId && a.variant === oldVariant)
         );
         return [...filtered, action];
       });
 
-      setUpdateData((prev: any) => ({
+      setUpdatedData((prev) => ({
         ...prev,
-        [`${oldProductId}-${oldVariant}`]: {
-          newVariant,
-          newQty,
-        },
+        [key]: { newVariant, newQty },
       }));
     } else {
-      // If no change (variant & qty same), remove from actions
+      // No changes: remove from actions & updatedData
       setItemActions((prev) =>
         prev.filter(
           (a) => !(a.productId === oldProductId && a.variant === oldVariant)
         )
       );
-
-      setUpdateData((prev: any) => {
+      setUpdatedData((prev) => {
         const updated = { ...prev };
-        delete updated[`${oldProductId}-${oldVariant}`];
+        delete updated[key];
         return updated;
       });
     }
-
-    console.log("Updated itemActions:", itemActions);
   };
 
-  // Function to handle removing an added item
+  // Remove added item
   const handleRemoveAddedItem = (index: number) => {
     setRemovedActions((prev) => new Set(prev.add(index)));
   };
 
   // Send to warehouse
   const handleSendToWarehouse = async () => {
-    if (selectedOrder?.status === "Order Placed") {
-      try {
-        // Filter out removed actions before sending
-        const actionsToSend = itemActions.filter(
-          (_, index) => !removedActions.has(index)
-        );
-        await dispatch(
-          sendToWarehouse({
-            orderId: selectedOrder._id,
-            items: actionsToSend,
-          })
-        ).unwrap();
-        dispatch(fetchOrderById(selectedOrder._id));
-        toast.success("Order sent to warehouse successfully!");
-        setItemActions([]);
-        setRemovedItems(new Set());
-        setRemovedActions(new Set());
-      } catch (error) {
-        toast.error("Failed to send order to warehouse. Please try again.");
-        console.error("Send to warehouse error:", error);
-      }
-    } else {
+    if (selectedOrder?.status !== "Order Placed") {
       toast.error("Order is not in 'Order Placed' status");
+      return;
+    }
+
+    try {
+      const actionsToSend = itemActions.filter(
+        (_, index) => !removedActions.has(index)
+      );
+      await dispatch(
+        sendToWarehouse({ orderId: selectedOrder._id, items: actionsToSend })
+      ).unwrap();
+      dispatch(fetchOrderById(selectedOrder._id));
+      toast.success("Order sent to warehouse successfully!");
+      setItemActions([]);
+      setRemovedItems(new Set());
+      setRemovedActions(new Set());
+      setUpdatedData({});
+    } catch (error) {
+      toast.error("Failed to send order to warehouse. Please try again.");
+      console.error("Send to warehouse error:", error);
     }
   };
 
@@ -166,16 +141,14 @@ const SendToWarehouse = ({ selectedOrder, loading }: any) => {
     <>
       <Card>
         <CardHeader>
-          <div className="flex justify-between align-items-center">
+          <div className="flex justify-between items-center">
             <div>
               <CardTitle>Order Items</CardTitle>
               <CardDescription>
                 Select items to fulfill with provided quantities
               </CardDescription>
             </div>
-            <div>
-              <AddItemModal onAddItem={handleAddItem} />
-            </div>
+            <AddItemModal onAddItem={handleAddItem} />
           </div>
         </CardHeader>
 
@@ -194,33 +167,44 @@ const SendToWarehouse = ({ selectedOrder, loading }: any) => {
             </TableHeader>
             <TableBody>
               {selectedOrder.items.map((item: any) => {
-                const itemId = item._id;
-                if (removedItems.has(itemId)) return null; // Hide removed items
+                if (removedItems.has(item._id)) return null;
+
+                const key = `${item.productId._id}-${item.variant}`;
+                const currentData = updatedData[key];
+                const displayVariant = currentData?.newVariant || item.variant;
+                const displayQty = currentData?.newQty ?? item.quantity;
+
                 return (
-                  <TableRow key={itemId}>
+                  <TableRow
+                    key={`${item._id}-${
+                      updatedData[`${item.productId._id}-${item.variant}`]
+                        ?.newVariant || item.variant
+                    }`}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        {item.productId.image?.length > 0 && (
+                        {item.productId.image?.[0] && (
                           <img
                             src={`/api/images/${item.productId.image[0]}`}
                             alt={item.productId.name}
                             className="h-10 w-10 rounded-md object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
+                            onError={(e) =>
+                              (e.currentTarget.style.display = "none")
+                            }
                           />
                         )}
                         <div className="font-medium">{item.productId.name}</div>
                       </div>
                     </TableCell>
-                    <TableCell>{item.variant}</TableCell>
-                    <TableCell className="text-center">
-                      {updatedData?.[`${item.productId._id}-${item.variant}`]
-                        ?.newQty ?? item.quantity}
-                    </TableCell>
+                    <TableCell>{displayVariant}</TableCell>
+                    <TableCell className="text-center">{displayQty}</TableCell>
                     <TableCell>
                       <EditItemDialog
-                        item={item}
+                        item={{
+                          ...item,
+                          variant: displayVariant,
+                          quantity: displayQty,
+                        }}
                         orderId={selectedOrder._id}
                         disabled={loading}
                         onReplace={(newVariant: string, quantity: number) =>
@@ -234,13 +218,12 @@ const SendToWarehouse = ({ selectedOrder, loading }: any) => {
                         }
                       />
                     </TableCell>
-
                     <TableCell>
                       <Button
                         className="bg-red-500"
                         onClick={() =>
                           handleRemoveItem(
-                            itemId,
+                            item._id,
                             item.productId._id,
                             item.variant
                           )
@@ -252,22 +235,17 @@ const SendToWarehouse = ({ selectedOrder, loading }: any) => {
                   </TableRow>
                 );
               })}
-              {itemActions.map((action, index) => {
-                if (removedActions.has(index)) return null; // Hide removed actions
 
-                // Only render added items here
-                if (action.action !== "add") return null;
+              {itemActions.map((action, index) => {
+                if (removedActions.has(index) || action.action !== "add")
+                  return null;
 
                 return (
                   <TableRow key={`action-${index}`}>
-                    <TableCell>
-                      <div className="font-medium">{action.name}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{action.variant}</div>
-                    </TableCell>
+                    <TableCell>{action.name}</TableCell>
+                    <TableCell>{action.variant}</TableCell>
                     <TableCell className="text-center">
-                      <div className="font-medium">{action.quantity}</div>
+                      {action.quantity}
                     </TableCell>
                     <TableCell>
                       <EditItemDialog
@@ -283,7 +261,7 @@ const SendToWarehouse = ({ selectedOrder, loading }: any) => {
                         disabled={loading}
                         onReplace={(newVariant: string, quantity: number) =>
                           handleReplaceItem(
-                            action.productId._id,
+                            action.productId,
                             action.variant,
                             action.quantity,
                             newVariant,
